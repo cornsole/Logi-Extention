@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>YouTube 가로 휠 탐색</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <h1>YouTube 가로 휠 탐색</h1>
+      <p class="description">플레이어 위에서 가로 휠로 재생 위치를 이동합니다.</p>
+
+      <div class="setting-heading">
+        <label for="sensitivity">탐색 감도</label>
+        <output id="sensitivity-value" for="sensitivity">5초 / 100px</output>
+      </div>
+      <input id="sensitivity" type="range" min="1" max="20" step="1" value="5">
+      <div class="range-labels" aria-hidden="true">
+        <span>1초</span>
+        <span>20초</span>
+      </div>
+
+      <label class="checkbox-row">
+        <input id="inverted" type="checkbox">
+        <span>가로 휠 방향 반전</span>
+      </label>
+
+      <button id="reset" type="button">기본값 복원</button>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </main>
+
+    <script src="../content/settings.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube Horizontal Wheel Seek",
+  "version": "1.0.0",
+  "description": "Seek YouTube videos with a horizontal mouse wheel.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "https://www.youtube-nocookie.com/*"
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "youtube-horizontal-wheel-seek@local",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
+    }
+  },
+  "action": {
+    "default_title": "YouTube Horizontal Wheel Seek",
+    "default_popup": "src/popup/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://www.youtube-nocookie.com/*"
+      ],
+      "js": [
+        "src/content/wheel-normalizer.js",
+        "src/content/settings.js",
+        "src/content/youtube-wheel.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_start"
+    }
+  ]
+}

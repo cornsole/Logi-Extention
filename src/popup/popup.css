@@ -1,0 +1,104 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: Canvas;
+  color: CanvasText;
+}
+
+main {
+  padding: 18px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.description {
+  margin: 6px 0 20px;
+  color: GrayText;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.setting-heading,
+.range-labels,
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.setting-heading {
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+output {
+  color: #e62117;
+  font-variant-numeric: tabular-nums;
+}
+
+input[type="range"] {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 12px 0 4px;
+  accent-color: #e62117;
+}
+
+.range-labels {
+  color: GrayText;
+  font-size: 11px;
+}
+
+.checkbox-row {
+  justify-content: flex-start;
+  gap: 9px;
+  margin: 22px 0;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.checkbox-row input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: #e62117;
+}
+
+button {
+  width: 100%;
+  border: 1px solid ButtonBorder;
+  border-radius: 7px;
+  padding: 9px 12px;
+  background: ButtonFace;
+  color: ButtonText;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  filter: brightness(0.95);
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid Highlight;
+  outline-offset: 2px;
+}
+
+.status {
+  min-height: 16px;
+  margin: 8px 0 0;
+  color: GrayText;
+  font-size: 11px;
+  text-align: center;
+}
