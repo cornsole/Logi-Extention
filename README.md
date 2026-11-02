@@ -1,23 +1,25 @@
 # YouTube Horizontal Wheel Seek
 
-Logitech MX Master 같은 가로 휠 마우스로 YouTube 재생 위치를 이동하는 Chrome·Firefox 확장 프로그램입니다.
+**Language:** **English** | [한국어](README.ko.md)
 
-> 써보면 진짜 편합니다 히히
+A Chrome and Firefox extension that lets horizontal-wheel mice such as the Logitech MX Master seek through YouTube videos.
 
-## 주요 기능
+> Once you try it, it is genuinely convenient. Hehe.
 
-- 일반 영상, Shorts, `youtube.com/embed`, `youtube-nocookie.com/embed` 지원
-- 가로 휠 이동량에 비례해 재생 위치 이동
-- 기본 감도 `2초 / 100px`, 팝업에서 `1–20초 / 100px`로 조절
-- 방향 반전이 기본으로 켜지며 팝업에서 변경 가능
-- 재생 중이면 계속 재생하고, 일시정지 중이면 정지 상태 유지
-- 일시정지 상태에서는 미디어 로딩과 별개로 목표 시간과 재생바를 즉시 표시
-- 볼륨 슬라이더의 기존 가로 휠 동작 유지
-- VOD, 광고, DVR 라이브의 실제 탐색 가능 범위 적용
+## Features
 
-## 빠른 설치
+- Supports standard videos, Shorts, `youtube.com/embed`, and `youtube-nocookie.com/embed`
+- Seeks proportionally to horizontal-wheel movement
+- Defaults to `2 seconds / 100px`, adjustable from `1–20 seconds / 100px` in the popup
+- Direction inversion is enabled by default and can be changed in the popup
+- Preserves the current playback state while seeking
+- Shows the target time and progress immediately while paused, independently of media loading
+- Preserves the volume slider's native horizontal-wheel behavior
+- Clamps VOD, ad, and DVR live-stream seeking to the actual seekable range
 
-Node.js 18 이상이 필요합니다. 외부 npm 패키지는 설치하지 않습니다.
+## Quick install
+
+Node.js 18 or later is required. No external npm packages are installed.
 
 ```bash
 git clone https://github.com/cornsole/Logi-Extention.git
@@ -25,95 +27,95 @@ cd Logi-Extention
 npm run package
 ```
 
-명령을 실행하면 다음 디렉터리가 생성됩니다.
+The command creates these directories:
 
 - Chrome: `dist/chrome`
 - Firefox: `dist/firefox`
 
 ### Chrome
 
-1. 주소창에서 `chrome://extensions`를 엽니다.
-2. 오른쪽 위의 **개발자 모드**를 켭니다.
-3. **압축해제된 확장 프로그램을 로드합니다**를 선택합니다.
-4. 이 프로젝트의 `dist/chrome` 디렉터리를 선택합니다.
-5. 이미 열려 있던 YouTube 탭을 새로고침합니다.
+1. Open `chrome://extensions` in the address bar.
+2. Enable **Developer mode** in the upper-right corner.
+3. Select **Load unpacked**.
+4. Select this project's `dist/chrome` directory.
+5. Reload any YouTube tabs that were already open.
 
-### Firefox 140 이상
+### Firefox 140 or later
 
-1. 주소창에서 `about:debugging#/runtime/this-firefox`를 엽니다.
-2. **임시 부가 기능 로드**를 선택합니다.
-3. `dist/firefox/manifest.json`을 선택합니다.
-4. 이미 열려 있던 YouTube 탭을 새로고침합니다.
+1. Open `about:debugging#/runtime/this-firefox` in the address bar.
+2. Select **Load Temporary Add-on**.
+3. Select `dist/firefox/manifest.json`.
+4. Reload any YouTube tabs that were already open.
 
-임시 부가 기능은 Firefox를 종료하면 제거됩니다. 영구 설치에는 Mozilla 서명이 필요합니다.
+Temporary add-ons are removed when Firefox exits. Permanent installation requires Mozilla signing.
 
-## 사용법
+## Usage
 
-1. YouTube 영상을 엽니다.
-2. 마우스 포인터를 플레이어 위에 둡니다.
-3. 기본 설정에서는 가로 휠을 오른쪽으로 돌리면 뒤로, 왼쪽으로 돌리면 앞으로 이동합니다.
-4. 브라우저 툴바의 확장 아이콘을 눌러 감도와 방향을 변경합니다.
+1. Open a YouTube video.
+2. Place the mouse pointer over the player.
+3. With the default settings, rotate the horizontal wheel right to seek backward and left to seek forward.
+4. Select the extension icon in the browser toolbar to change sensitivity and direction.
 
-| 설정 | 기본값 | 설명 |
+| Setting | Default | Description |
 |---|---:|---|
-| 탐색 감도 | 2초 / 100px | 같은 휠 이동으로 변경할 재생 시간을 조절합니다. |
-| 가로 휠 방향 반전 | 켜짐 | 오른쪽·왼쪽 탐색 방향을 서로 바꿉니다. |
+| Seek sensitivity | 2 seconds / 100px | Controls how much playback time changes for the same wheel movement. |
+| Invert horizontal-wheel direction | On | Swaps the left and right seek directions. |
 
-설정은 브라우저의 동기화 저장소에 보관되며 열린 YouTube 탭에도 즉시 반영됩니다.
+Settings are stored in the browser's synchronized storage and are applied immediately to open YouTube tabs.
 
-팝업의 감도 조절 바 위에서는 두 휠을 모두 사용할 수 있습니다.
+Both wheels can adjust the sensitivity slider while the pointer is over it:
 
-- 일반 휠: 위로 돌리면 감도 증가, 아래로 돌리면 감소
-- 가로 휠: 좌우 입력으로 감도를 조절하며 **가로 휠 방향 반전** 설정을 동일하게 적용
+- Standard wheel: scroll up to increase sensitivity and down to decrease it
+- Horizontal wheel: adjust left or right, with the **Invert horizontal-wheel direction** setting applied
 
-## 입력 충돌 방지
+## Input conflict prevention
 
-- 볼륨 슬라이더 위에서는 확장이 가로 휠 이벤트를 처리하지 않습니다.
-- 일반 세로 휠은 변경하지 않습니다.
-- 플레이어 밖의 가로 휠은 변경하지 않습니다.
-- 수직 이동량이 더 큰 대각선 입력은 세로 스크롤로 간주합니다.
-- 탐색할 수 없는 라이브 스트림에서는 입력을 무시합니다.
+- The extension does not handle horizontal-wheel events over the volume slider.
+- Standard vertical-wheel behavior is unchanged outside the popup sensitivity slider.
+- Horizontal-wheel behavior outside the player is unchanged.
+- Diagonal input with a larger vertical component is treated as vertical scrolling.
+- Input is ignored for live streams that do not expose a seekable range.
 
-## 문제 해결
+## Troubleshooting
 
-### 가로 휠을 돌려도 반응하지 않음
+### The horizontal wheel does nothing
 
-1. Logitech Options+에서 해당 브라우저의 엄지 휠이 **가로 스크롤**로 설정되어 있는지 확인합니다.
-2. Chrome 또는 Firefox 확장 관리 화면에서 확장이 활성화되어 있는지 확인합니다.
-3. 확장을 처음 설치하거나 다시 로드했다면 YouTube 탭을 새로고침합니다.
-4. 포인터가 YouTube 플레이어 안에 있는지 확인합니다.
-5. 라이브 영상이라면 브라우저가 되감기를 허용하는 DVR 스트림인지 확인합니다.
+1. In Logitech Options+, confirm that the browser's thumb wheel is assigned to **Horizontal scrolling**.
+2. Confirm that the extension is enabled in Chrome or Firefox's extension manager.
+3. Reload the YouTube tab after installing or reloading the extension.
+4. Confirm that the pointer is inside the YouTube player.
+5. For live video, confirm that the stream supports DVR rewind.
 
-### 방향이나 이동량이 맞지 않음
+### The direction or seek distance feels wrong
 
-브라우저 툴바에서 확장 아이콘을 누른 뒤 **탐색 감도**와 **가로 휠 방향 반전**을 조절합니다. 운영체제와 Logitech Options+ 설정에 따라 장치가 보내는 휠 이동량이 달라질 수 있습니다.
+Select the extension icon in the browser toolbar, then adjust **Seek sensitivity** and **Invert horizontal-wheel direction**. The wheel delta produced by the device can vary with the operating system and Logitech Options+ settings.
 
-## 권한과 개인정보
+## Permissions and privacy
 
-| 권한 | 용도 |
+| Permission | Purpose |
 |---|---|
-| `storage` | 감도와 방향 설정을 브라우저 동기화 저장소에 보관합니다. |
-| `youtube.com`, `youtube-nocookie.com` | YouTube 플레이어에서 가로 휠 이벤트를 처리합니다. |
+| `storage` | Stores sensitivity and direction settings in the browser's synchronized storage. |
+| `youtube.com`, `youtube-nocookie.com` | Handles horizontal-wheel events inside YouTube players. |
 
-확장은 사용 기록이나 개인정보를 수집·전송하지 않습니다.
+The extension does not collect or transmit usage data or personal information.
 
-## 개발과 검사
+## Development and verification
 
 ```bash
 npm test
 npm run package
 ```
 
-- `npm test`: 휠 단위 변환, 감도, 방향, 탐색 범위 테스트
-- `npm run package`: Chrome·Firefox용 배포 디렉터리 생성
+- `npm test`: tests wheel-unit conversion, sensitivity, direction, and seek ranges
+- `npm run package`: creates the Chrome and Firefox distribution directories
 
-## 프로젝트 구조
+## Project structure
 
-- `src/content/wheel-normalizer.js`: `WheelEvent` 단위 정규화와 탐색 범위 계산
-- `src/content/paused-seeker.js`: 일시정지 영상의 중복 seek 방지와 목표 시간 누적
-- `src/content/progress-preview.js`: 일시정지 탐색 목표의 재생바·시간 프리뷰
-- `src/content/settings.js`: 동기화 설정 저장소
-- `src/content/youtube-wheel.js`: YouTube 플레이어 이벤트 처리
-- `src/popup/wheel-input.js`: 감도 바의 세로·가로 휠 방향 계산
-- `src/popup`: 감도와 방향 설정 UI
-- `scripts/package.mjs`: 브라우저별 배포 디렉터리 생성
+- `src/content/wheel-normalizer.js`: normalizes `WheelEvent` units and calculates seek ranges
+- `src/content/paused-seeker.js`: prevents overlapping paused seeks and accumulates the target time
+- `src/content/progress-preview.js`: previews paused-seek progress and target time
+- `src/content/settings.js`: synchronized settings storage
+- `src/content/youtube-wheel.js`: YouTube player event handling
+- `src/popup/wheel-input.js`: standard- and horizontal-wheel direction mapping for the sensitivity slider
+- `src/popup`: sensitivity and direction settings UI
+- `scripts/package.mjs`: creates browser-specific distributions
