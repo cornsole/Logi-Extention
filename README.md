@@ -2,6 +2,8 @@
 
 Logitech MX Master 같은 가로 휠 마우스로 YouTube 재생 위치를 이동하는 Chrome·Firefox 확장 프로그램입니다.
 
+> 써보면 진짜 편합니다 히히
+
 ## 주요 기능
 
 - 일반 영상, Shorts, `youtube.com/embed`, `youtube-nocookie.com/embed` 지원
