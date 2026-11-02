@@ -5,6 +5,13 @@ const {
   normalizeSettings,
 } = require("../src/content/settings.js");
 
+test("defines the requested default sensitivity and direction", () => {
+  assert.deepEqual(DEFAULT_SETTINGS, {
+    secondsPerHundredPixels: 2,
+    inverted: true,
+  });
+});
+
 test("uses defaults for missing or invalid settings", () => {
   assert.deepEqual(normalizeSettings({}), DEFAULT_SETTINGS);
   assert.deepEqual(normalizeSettings({ secondsPerHundredPixels: "invalid", inverted: "yes" }), DEFAULT_SETTINGS);

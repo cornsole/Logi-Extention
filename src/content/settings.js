@@ -2,8 +2,8 @@
   "use strict";
 
   const DEFAULT_SETTINGS = Object.freeze({
-    secondsPerHundredPixels: 5,
-    inverted: false,
+    secondsPerHundredPixels: 2,
+    inverted: true,
   });
   const MIN_SENSITIVITY = 1;
   const MAX_SENSITIVITY = 20;
