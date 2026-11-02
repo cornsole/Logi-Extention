@@ -21,12 +21,13 @@ class FakeVideo extends EventTarget {
   }
 }
 
-function createCoordinator() {
+function createCoordinator(options) {
   return createPausedSeekCoordinator({
     calculateSeekTime,
     schedule: (callback) => callback(),
     setTimer: () => 1,
     clearTimer: () => {},
+    ...options,
   });
 }
 
@@ -46,6 +47,25 @@ test("allows only one paused seek at a time and keeps the latest accumulated tar
 
   video.dispatchEvent(new Event("seeked"));
   assert.deepEqual(video.assignments, [1, 3]);
+});
+
+test("exposes the latest target immediately and settles only after the final seek", () => {
+  const video = new FakeVideo();
+  const settled = [];
+  const coordinator = createCoordinator({
+    onSettled: (settledVideo) => settled.push(settledVideo),
+  });
+  const bounds = { minimum: 0, maximum: 20 };
+
+  assert.equal(coordinator.seekBy(video, 1, bounds), 1);
+  assert.equal(coordinator.seekBy(video, 2, bounds), 3);
+  assert.deepEqual(settled, []);
+
+  video.dispatchEvent(new Event("seeked"));
+  assert.deepEqual(settled, []);
+
+  video.dispatchEvent(new Event("seeked"));
+  assert.deepEqual(settled, [video]);
 });
 
 test("clamps accumulated paused seeks to media bounds", () => {

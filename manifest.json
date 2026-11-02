@@ -21,6 +21,7 @@
       "js": [
         "src/content/wheel-normalizer.js",
         "src/content/paused-seeker.js",
+        "src/content/progress-preview.js",
         "src/content/settings.js",
         "src/content/youtube-wheel.js"
       ],

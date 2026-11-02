@@ -9,6 +9,7 @@ Logitech MX Master 같은 가로 휠 마우스로 YouTube 재생 위치를 이�
 - 기본 감도 `2초 / 100px`, 팝업에서 `1–20초 / 100px`로 조절
 - 방향 반전이 기본으로 켜지며 팝업에서 변경 가능
 - 재생 중이면 계속 재생하고, 일시정지 중이면 정지 상태 유지
+- 일시정지 상태에서는 미디어 로딩과 별개로 목표 시간과 재생바를 즉시 표시
 - 볼륨 슬라이더의 기존 가로 휠 동작 유지
 - VOD, 광고, DVR 라이브의 실제 탐색 가능 범위 적용
 
@@ -108,6 +109,7 @@ npm run package
 
 - `src/content/wheel-normalizer.js`: `WheelEvent` 단위 정규화와 탐색 범위 계산
 - `src/content/paused-seeker.js`: 일시정지 영상의 중복 seek 방지와 목표 시간 누적
+- `src/content/progress-preview.js`: 일시정지 탐색 목표의 재생바·시간 프리뷰
 - `src/content/settings.js`: 동기화 설정 저장소
 - `src/content/youtube-wheel.js`: YouTube 플레이어 이벤트 처리
 - `src/popup/wheel-input.js`: 감도 바의 세로·가로 휠 방향 계산

@@ -10,6 +10,7 @@
     const schedule = config.schedule || ((callback) => requestAnimationFrame(callback));
     const setTimer = config.setTimer || ((callback, delay) => setTimeout(callback, delay));
     const clearTimer = config.clearTimer || ((timer) => clearTimeout(timer));
+    const onSettled = config.onSettled || (() => {});
     const states = new WeakMap();
 
     function getState(video) {
@@ -37,6 +38,15 @@
         state.timer = null;
       }
     }
+    function scheduleSettled(video, state) {
+      const token = state.token;
+      schedule(() => {
+        if (token === state.token && !state.inFlight && state.targetTime === null) {
+          onSettled(video);
+        }
+      });
+    }
+
 
     function startNextSeek(video, state) {
       if (state.inFlight || state.targetTime === null || !video.paused) {
@@ -45,6 +55,7 @@
 
       if (Math.abs(video.currentTime - state.targetTime) <= TIME_EPSILON) {
         state.targetTime = null;
+        scheduleSettled(video, state);
         return;
       }
 
@@ -57,12 +68,17 @@
         if (completed || token !== state.token) {
           return;
         }
+        if (video.seeking && video.isConnected !== false) {
+          state.timer = setTimer(complete, SEEK_TIMEOUT_MS);
+          return;
+        }
         completed = true;
         clearCompletion(video, state);
         state.inFlight = false;
 
         if (!video.paused) {
           state.targetTime = null;
+          scheduleSettled(video, state);
           return;
         }
 
@@ -73,6 +89,7 @@
           schedule(() => startNextSeek(video, state));
         } else {
           state.targetTime = null;
+          scheduleSettled(video, state);
         }
       };
 
@@ -92,16 +109,18 @@
       const baseline = state.targetTime === null ? video.currentTime : state.targetTime;
       const targetTime = calculateSeekTime(baseline, secondsDelta, bounds);
       if (targetTime === null) {
-        return;
+        return null;
       }
 
       state.targetTime = targetTime;
       startNextSeek(video, state);
+      return targetTime;
     }
 
     function reset(video) {
       const state = states.get(video);
       if (!state) {
+        onSettled(video);
         return;
       }
 
@@ -109,6 +128,7 @@
       state.targetTime = null;
       state.inFlight = false;
       clearCompletion(video, state);
+      onSettled(video);
     }
 
     return { seekBy, reset };

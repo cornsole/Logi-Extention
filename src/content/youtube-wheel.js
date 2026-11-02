@@ -3,7 +3,10 @@
 
   const wheelMath = root.YTWheel;
   const settingsApi = root.YTWheelSettings;
-  const pausedSeeker = root.YTPausedSeeker.createPausedSeekCoordinator();
+  const progressPreview = root.YTProgressPreview.createProgressPreview();
+  const pausedSeeker = root.YTPausedSeeker.createPausedSeekCoordinator({
+    onSettled: (video) => progressPreview.clear(video),
+  });
   const PLAYER_SELECTOR = ".html5-video-player, #movie_player";
   const VOLUME_SLIDER_SELECTOR = ".ytp-volume-panel, .ytp-volume-slider, .ytp-volume-slider-handle";
 
@@ -52,7 +55,10 @@
       settings.inverted,
     );
     if (video.paused) {
-      pausedSeeker.seekBy(video, seconds, bounds);
+      const targetTime = pausedSeeker.seekBy(video, seconds, bounds);
+      if (targetTime !== null) {
+        progressPreview.show(video, targetTime, bounds);
+      }
       return;
     }
 
