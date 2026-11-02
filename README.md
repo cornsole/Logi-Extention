@@ -58,6 +58,11 @@ npm run package
 
 설정은 브라우저의 동기화 저장소에 보관되며 열린 YouTube 탭에도 즉시 반영됩니다.
 
+팝업의 감도 조절 바 위에서는 두 휠을 모두 사용할 수 있습니다.
+
+- 일반 휠: 위로 돌리면 감도 증가, 아래로 돌리면 감소
+- 가로 휠: 좌우 입력으로 감도를 조절하며 **가로 휠 방향 반전** 설정을 동일하게 적용
+
 ## 입력 충돌 방지
 
 - 볼륨 슬라이더 위에서는 확장이 가로 휠 이벤트를 처리하지 않습니다.
@@ -102,7 +107,9 @@ npm run package
 ## 프로젝트 구조
 
 - `src/content/wheel-normalizer.js`: `WheelEvent` 단위 정규화와 탐색 범위 계산
+- `src/content/paused-seeker.js`: 일시정지 영상의 중복 seek 방지와 목표 시간 누적
 - `src/content/settings.js`: 동기화 설정 저장소
 - `src/content/youtube-wheel.js`: YouTube 플레이어 이벤트 처리
+- `src/popup/wheel-input.js`: 감도 바의 세로·가로 휠 방향 계산
 - `src/popup`: 감도와 방향 설정 UI
 - `scripts/package.mjs`: 브라우저별 배포 디렉터리 생성

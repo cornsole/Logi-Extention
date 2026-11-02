@@ -2,6 +2,7 @@
   "use strict";
 
   const settingsApi = globalThis.YTWheelSettings;
+  const wheelInput = globalThis.YTWheelInput;
   const sensitivity = document.querySelector("#sensitivity");
   const sensitivityValue = document.querySelector("#sensitivity-value");
   const inverted = document.querySelector("#inverted");
@@ -40,6 +41,23 @@
     sensitivityValue.value = `${sensitivity.value}초 / 100px`;
   });
   sensitivity.addEventListener("change", persist);
+  sensitivity.addEventListener("wheel", (event) => {
+    const step = wheelInput.getWheelStep(event.deltaX, event.deltaY, inverted.checked);
+    if (step === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    const minimum = Number(sensitivity.min);
+    const maximum = Number(sensitivity.max);
+    const nextValue = Math.min(
+      Math.max(Number(sensitivity.value) + step, minimum),
+      maximum,
+    );
+    sensitivity.value = String(nextValue);
+    sensitivityValue.value = `${nextValue}초 / 100px`;
+    void persist();
+  }, { passive: false });
   inverted.addEventListener("change", persist);
   reset.addEventListener("click", async () => {
     render(settingsApi.DEFAULT_SETTINGS);

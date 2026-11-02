@@ -3,6 +3,7 @@
 
   const wheelMath = root.YTWheel;
   const settingsApi = root.YTWheelSettings;
+  const pausedSeeker = root.YTPausedSeeker.createPausedSeekCoordinator();
   const PLAYER_SELECTOR = ".html5-video-player, #movie_player";
   const VOLUME_SLIDER_SELECTOR = ".ytp-volume-panel, .ytp-volume-slider, .ytp-volume-slider-handle";
 
@@ -50,6 +51,12 @@
       settings.secondsPerHundredPixels,
       settings.inverted,
     );
+    if (video.paused) {
+      pausedSeeker.seekBy(video, seconds, bounds);
+      return;
+    }
+
+    pausedSeeker.reset(video);
     const nextTime = wheelMath.calculateSeekTime(video.currentTime, seconds, bounds);
     if (nextTime === null || nextTime === video.currentTime) {
       return;
