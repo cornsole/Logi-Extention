@@ -8,6 +8,7 @@ const {
   pixelsToSeconds,
   getSeekBounds,
   calculateSeekTime,
+  isTimeBuffered,
 } = require("../src/content/wheel-normalizer.js");
 
 test("normalizes WheelEvent units into bounded pixels", () => {
@@ -56,4 +57,37 @@ test("clamps seek time to the available range", () => {
   assert.equal(calculateSeekTime(20, 5, bounds), 25);
   assert.equal(calculateSeekTime(20, -20, bounds), 10);
   assert.equal(calculateSeekTime(48, 10, bounds), 50);
+});
+
+test("detects targets across discontinuous buffered ranges", () => {
+  const ranges = {
+    length: 2,
+    start(index) {
+      return [0, 30][index];
+    },
+    end(index) {
+      return [10, 40][index];
+    },
+  };
+
+  assert.equal(isTimeBuffered(ranges, 5), true);
+  assert.equal(isTimeBuffered(ranges, 35), true);
+  assert.equal(isTimeBuffered(ranges, 20), false);
+});
+
+test("uses a small tolerance around buffered range boundaries", () => {
+  const ranges = {
+    length: 1,
+    start() {
+      return 10;
+    },
+    end() {
+      return 20;
+    },
+  };
+
+  assert.equal(isTimeBuffered(ranges, 9.8), true);
+  assert.equal(isTimeBuffered(ranges, 20.2), true);
+  assert.equal(isTimeBuffered(ranges, 9.5), false);
+  assert.equal(isTimeBuffered(null, 15), false);
 });

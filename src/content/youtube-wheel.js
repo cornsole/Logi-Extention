@@ -14,6 +14,7 @@
   let pendingVideo = null;
   let pendingPixels = 0;
   let animationFrame = null;
+  const playbackListeners = new WeakSet();
 
   function elementFromPath(path, predicate) {
     for (const item of path) {
@@ -82,6 +83,7 @@
 
     pendingVideo = video;
     pendingPixels += pixels;
+    observePlayback(video);
     if (animationFrame === null) {
       animationFrame = requestAnimationFrame(applyPendingSeek);
     }
@@ -116,6 +118,41 @@
     queueSeek(video, pixels);
   }
 
+  function handlePointerDown(event) {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+    const progressBar = event.target.closest(".ytp-progress-bar-container, .ytp-progress-bar");
+    const player = progressBar && progressBar.closest(PLAYER_SELECTOR);
+    if (!player) {
+      return;
+    }
+    const video = player.querySelector("video");
+    if (video) {
+      pausedSeeker.cancel(video);
+    }
+  }
+
+  function handlePlaybackStart(video) {
+    playbackListeners.delete(video);
+    if (pendingVideo === video && pendingPixels !== 0) {
+      if (animationFrame !== null) {
+        root.cancelAnimationFrame(animationFrame);
+        animationFrame = null;
+      }
+      applyPendingSeek();
+    }
+    pausedSeeker.flush(video);
+  }
+
+  function observePlayback(video) {
+    if (playbackListeners.has(video)) {
+      return;
+    }
+    playbackListeners.add(video);
+    video.addEventListener("play", () => handlePlaybackStart(video), { once: true });
+  }
+
   settingsApi.loadSettings().then((loaded) => {
     settings = loaded;
   });
@@ -124,4 +161,5 @@
   });
 
   document.addEventListener("wheel", handleWheel, { capture: true, passive: false });
+  document.addEventListener("pointerdown", handlePointerDown, { capture: true });
 })(typeof globalThis !== "undefined" ? globalThis : this);

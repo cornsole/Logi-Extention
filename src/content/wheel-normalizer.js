@@ -65,6 +65,27 @@
     return clamp(currentTime + secondsDelta, bounds.minimum, bounds.maximum);
   }
 
+  function isTimeBuffered(ranges, time, tolerance) {
+    if (!ranges || !Number.isFinite(time)) {
+      return false;
+    }
+
+    const margin = Number.isFinite(tolerance) ? Math.max(tolerance, 0) : 0.25;
+    for (let index = 0; index < ranges.length; index += 1) {
+      const start = ranges.start(index);
+      const end = ranges.end(index);
+      if (
+        Number.isFinite(start)
+        && Number.isFinite(end)
+        && time >= start - margin
+        && time <= end + margin
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   const api = {
     DOM_DELTA_PIXEL,
     DOM_DELTA_LINE,
@@ -73,6 +94,7 @@
     pixelsToSeconds,
     getSeekBounds,
     calculateSeekTime,
+    isTimeBuffered,
   };
 
   root.YTWheel = Object.assign(root.YTWheel || {}, api);

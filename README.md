@@ -14,6 +14,7 @@ A Chrome and Firefox extension that lets horizontal-wheel mice such as the Logit
 - Direction inversion is enabled by default and can be changed in the popup
 - Preserves the current playback state while seeking
 - Shows the target time and progress immediately while paused, independently of media loading
+- Updates buffered targets immediately and requests only the final unbuffered target after wheel input stops
 - Preserves the volume slider's native horizontal-wheel behavior
 - Clamps VOD, ad, and DVR live-stream seeking to the actual seekable range
 
@@ -106,13 +107,13 @@ npm test
 npm run package
 ```
 
-- `npm test`: tests wheel-unit conversion, sensitivity, direction, and seek ranges
+- `npm test`: tests wheel-unit conversion, sensitivity, direction, buffered ranges, and seek scheduling
 - `npm run package`: creates the Chrome and Firefox distribution directories
 
 ## Project structure
 
 - `src/content/wheel-normalizer.js`: normalizes `WheelEvent` units and calculates seek ranges
-- `src/content/paused-seeker.js`: prevents overlapping paused seeks and accumulates the target time
+- `src/content/paused-seeker.js`: updates buffered frames immediately and commits the final unbuffered target after a wheel gesture
 - `src/content/progress-preview.js`: previews paused-seek progress and target time
 - `src/content/settings.js`: synchronized settings storage
 - `src/content/youtube-wheel.js`: YouTube player event handling
