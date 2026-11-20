@@ -19,10 +19,19 @@ test("normalizes WheelEvent units into bounded pixels", () => {
   assert.equal(normalizeHorizontalDelta(Number.NaN, DOM_DELTA_PIXEL, 800), 0);
 });
 
-test("converts pixels to seconds with sensitivity and direction", () => {
-  assert.equal(pixelsToSeconds(100, 5, false), 5);
-  assert.equal(pixelsToSeconds(-20, 5, false), -1);
-  assert.equal(pixelsToSeconds(100, 5, true), -5);
+test("maps the default inverted direction to positive seek time", () => {
+  assert.equal(pixelsToSeconds(100, 5, false), -5);
+  assert.equal(pixelsToSeconds(-20, 5, false), 1);
+  assert.equal(pixelsToSeconds(100, 5, true), 5);
+});
+
+test("moves right from the lower bound with the default direction", () => {
+  const bounds = { minimum: 0, maximum: 100 };
+  const right = pixelsToSeconds(1000, 2, true);
+  const left = pixelsToSeconds(-1000, 2, true);
+
+  assert.equal(calculateSeekTime(0, right, bounds), 20);
+  assert.equal(calculateSeekTime(20, left, bounds), 0);
 });
 
 test("prefers the complete seekable range for DVR media", () => {

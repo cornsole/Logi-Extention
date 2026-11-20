@@ -31,7 +31,7 @@
       return 0;
     }
 
-    const direction = inverted ? -1 : 1;
+    const direction = inverted ? 1 : -1;
     return (pixels * secondsPerHundredPixels * direction) / 100;
   }
 

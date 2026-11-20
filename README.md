@@ -14,7 +14,7 @@ A Chrome and Firefox extension that lets horizontal-wheel mice such as the Logit
 - Direction inversion is enabled by default and can be changed in the popup
 - Preserves the current playback state while seeking
 - Shows the target time and progress immediately while paused, independently of media loading
-- Updates buffered targets immediately and requests only the final unbuffered target after wheel input stops
+- Updates buffered targets immediately; unbuffered gestures start loading within 100ms and commit the final target after input stops
 - Preserves the volume slider's native horizontal-wheel behavior
 - Clamps VOD, ad, and DVR live-stream seeking to the actual seekable range
 
@@ -54,7 +54,7 @@ Temporary add-ons are removed when Firefox exits. Permanent installation require
 
 1. Open a YouTube video.
 2. Place the mouse pointer over the player.
-3. With the default settings, rotate the horizontal wheel right to seek backward and left to seek forward.
+3. With the default settings, rotate the horizontal wheel right to seek forward and left to seek backward.
 4. Select the extension icon in the browser toolbar to change sensitivity and direction.
 
 | Setting | Default | Description |
@@ -109,11 +109,12 @@ npm run package
 
 - `npm test`: tests wheel-unit conversion, sensitivity, direction, buffered ranges, and seek scheduling
 - `npm run package`: creates the Chrome and Firefox distribution directories
+- [`docs/SEEK_ANALYSIS.ko.md`](docs/SEEK_ANALYSIS.ko.md): measured seek latency, direction-bug analysis, and regression criteria (Korean)
 
 ## Project structure
 
 - `src/content/wheel-normalizer.js`: normalizes `WheelEvent` units and calculates seek ranges
-- `src/content/paused-seeker.js`: updates buffered frames immediately and commits the final unbuffered target after a wheel gesture
+- `src/content/paused-seeker.js`: updates buffered frames immediately and bounds unbuffered gesture latency before the final commit
 - `src/content/progress-preview.js`: previews paused-seek progress and target time
 - `src/content/settings.js`: synchronized settings storage
 - `src/content/youtube-wheel.js`: YouTube player event handling

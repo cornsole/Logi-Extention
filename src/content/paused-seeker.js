@@ -2,6 +2,7 @@
   "use strict";
 
   const DEFAULT_COMMIT_DELAY_MS = 80;
+  const DEFAULT_MAX_COMMIT_DELAY_MS = 100;
   const TIME_EPSILON = 0.01;
 
   function createPausedSeekCoordinator(options) {
@@ -14,6 +15,9 @@
     const commitDelay = Number.isFinite(config.commitDelay)
       ? Math.max(config.commitDelay, 0)
       : DEFAULT_COMMIT_DELAY_MS;
+    const maxCommitDelay = Number.isFinite(config.maxCommitDelay)
+      ? Math.max(config.maxCommitDelay, commitDelay)
+      : Math.max(DEFAULT_MAX_COMMIT_DELAY_MS, commitDelay);
     const onSettled = config.onSettled || (() => {});
     const states = new WeakMap();
 
@@ -23,6 +27,13 @@
         state.commitTimer = null;
       }
     }
+    function clearMaxCommitTimer(state) {
+      if (state.maxCommitTimer !== null) {
+        clearTimer(state.maxCommitTimer);
+        state.maxCommitTimer = null;
+      }
+    }
+
 
     function clearSeekListener(video, state) {
       if (state.onSeeked) {
@@ -43,7 +54,9 @@
       state.committedTime = null;
       state.inFlight = false;
       state.kind = null;
+      state.checkpointCommitted = false;
       clearCommitTimer(state);
+      clearMaxCommitTimer(state);
       clearSeekListener(video, state);
       onSettled(video);
     }
@@ -59,6 +72,8 @@
           token: 0,
           commitTimer: null,
           onSeeked: null,
+          maxCommitTimer: null,
+          checkpointCommitted: false,
         };
         states.set(video, state);
         video.addEventListener("play", () => flush(video));
@@ -72,7 +87,9 @@
       state.committedTime = null;
       state.inFlight = false;
       state.kind = null;
+      state.checkpointCommitted = false;
       clearCommitTimer(state);
+      clearMaxCommitTimer(state);
       clearSeekListener(video, state);
       onSettled(video);
     }
@@ -146,8 +163,13 @@
       assignSeek(video, state, state.targetTime, "preview");
     }
 
-    function commitFinal(video, state) {
-      clearCommitTimer(state);
+    function commitTarget(video, state, kind) {
+      const final = kind === "final";
+      if (final) {
+        clearCommitTimer(state);
+        clearMaxCommitTimer(state);
+      }
+
       const targetTime = state.targetTime;
       if (targetTime === null) {
         return null;
@@ -158,17 +180,31 @@
         && state.committedTime !== null
         && Math.abs(state.committedTime - targetTime) <= TIME_EPSILON
       ) {
-        state.kind = "final";
+        state.kind = kind;
         return targetTime;
       }
 
       if (!video.seeking && Math.abs(video.currentTime - targetTime) <= TIME_EPSILON) {
-        settle(video, state);
+        state.committedTime = targetTime;
+        state.kind = kind;
+        if (final) {
+          settle(video, state);
+        }
         return targetTime;
       }
 
-      assignSeek(video, state, targetTime, "final");
+      assignSeek(video, state, targetTime, kind);
       return targetTime;
+    }
+
+    function commitCheckpoint(video, state) {
+      state.maxCommitTimer = null;
+      state.checkpointCommitted = true;
+      return commitTarget(video, state, "checkpoint");
+    }
+
+    function commitFinal(video, state) {
+      return commitTarget(video, state, "final");
     }
 
     function scheduleFinalCommit(video, state) {
@@ -177,6 +213,13 @@
         state.commitTimer = null;
         commitFinal(video, state);
       }, commitDelay);
+
+      if (!state.checkpointCommitted && state.maxCommitTimer === null) {
+        state.maxCommitTimer = setTimer(
+          () => commitCheckpoint(video, state),
+          maxCommitDelay,
+        );
+      }
     }
 
     function seekBy(video, secondsDelta, bounds) {

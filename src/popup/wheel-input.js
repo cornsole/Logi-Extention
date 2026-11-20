@@ -6,7 +6,7 @@
     const vertical = Number.isFinite(deltaY) ? deltaY : 0;
 
     if (Math.abs(horizontal) > Math.abs(vertical) && horizontal !== 0) {
-      const direction = horizontalInverted ? -1 : 1;
+      const direction = horizontalInverted ? 1 : -1;
       return Math.sign(horizontal) * direction;
     }
 

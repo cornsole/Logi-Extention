@@ -95,6 +95,7 @@ function createCoordinator(options) {
     setTimer: (callback, delay) => clock.setTimer(callback, delay),
     clearTimer: (timer) => clock.clearTimer(timer),
     commitDelay: 80,
+    maxCommitDelay: 100,
     onSettled: (video) => settled.push(video),
     ...options,
   });
@@ -115,6 +116,26 @@ test("commits only the final unbuffered target after the wheel gesture ends", ()
   assert.deepEqual(video.assignments, []);
   clock.advance(1);
   assert.deepEqual(video.assignments, [20]);
+});
+
+test("commits a checkpoint during a long unbuffered wheel gesture", () => {
+  const video = new FakeVideo(createRanges([[0, 2]]));
+  const { clock, coordinator } = createCoordinator();
+  const bounds = { minimum: 0, maximum: 100 };
+
+  coordinator.seekBy(video, 10, bounds);
+  clock.advance(30);
+  coordinator.seekBy(video, 10, bounds);
+  clock.advance(30);
+  coordinator.seekBy(video, 10, bounds);
+  clock.advance(40);
+  assert.deepEqual(video.assignments, [30]);
+
+  coordinator.seekBy(video, 10, bounds);
+  clock.advance(40);
+  coordinator.seekBy(video, 10, bounds);
+  clock.advance(80);
+  assert.deepEqual(video.assignments, [30, 50]);
 });
 
 test("a newer wheel gesture preempts an older final seek after its idle delay", () => {
@@ -167,7 +188,7 @@ test("cancel discards a pending wheel target", () => {
 
   coordinator.seekBy(video, 30, bounds);
   coordinator.cancel(video);
-  clock.advance(80);
+  clock.advance(200);
 
   assert.deepEqual(video.assignments, []);
   assert.deepEqual(settled, [video]);
