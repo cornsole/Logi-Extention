@@ -15,7 +15,7 @@ A Chrome and Firefox extension that lets horizontal-wheel mice such as the Logit
 - Preserves the current playback state while seeking
 - Shows the target time and progress immediately while paused, independently of media loading
 - Updates buffered targets immediately; unbuffered gestures start loading within 100ms and commit the final target after input stops
-- Ignores wheel seeking during YouTube ads and clears pending seeks when ads or media sources change
+- Supports seeking within seekable YouTube ads and discards ad-owned targets, timers, and previews when media sessions change
 - Preserves the volume slider's native horizontal-wheel behavior
 - Clamps VOD and DVR live-stream seeking to the actual seekable range
 
@@ -77,6 +77,7 @@ Both wheels can adjust the sensitivity slider while the pointer is over it:
 - Horizontal-wheel behavior outside the player is unchanged.
 - Diagonal input with a larger vertical component is treated as vertical scrolling.
 - Input is ignored for live streams that do not expose a seekable range.
+- Ads without a usable `seekable` range are not handled. YouTube may reject a seek even when a range is exposed; the extension does not force playback or retry rejected seeks.
 
 ## Troubleshooting
 
@@ -118,6 +119,7 @@ npm run package
 - `src/content/paused-seeker.js`: updates buffered frames immediately and bounds unbuffered gesture latency before the final commit
 - `src/content/progress-preview.js`: previews paused-seek progress and target time
 - `src/content/settings.js`: synchronized settings storage
+- `src/content/media-session.js`: per-media sessions that separate ads, content, and source changes
 - `src/content/youtube-wheel.js`: YouTube player event handling
 - `src/popup/wheel-input.js`: standard- and horizontal-wheel direction mapping for the sensitivity slider
 - `src/popup`: sensitivity and direction settings UI

@@ -35,6 +35,7 @@
         "src/content/paused-seeker.js",
         "src/content/progress-preview.js",
         "src/content/settings.js",
+        "src/content/media-session.js",
         "src/content/youtube-wheel.js"
       ],
       "all_frames": true,

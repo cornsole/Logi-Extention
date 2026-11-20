@@ -21,19 +21,28 @@
     const onSettled = config.onSettled || (() => {});
     const states = new WeakMap();
 
+    function isCurrentSession(video, session) {
+      return Boolean(
+        session
+        && session.video === video
+        && typeof session.isCurrent === "function"
+        && session.isCurrent(),
+      );
+    }
+
     function clearCommitTimer(state) {
       if (state.commitTimer !== null) {
         clearTimer(state.commitTimer);
         state.commitTimer = null;
       }
     }
+
     function clearMaxCommitTimer(state) {
       if (state.maxCommitTimer !== null) {
         clearTimer(state.maxCommitTimer);
         state.maxCommitTimer = null;
       }
     }
-
 
     function clearSeekListener(video, state) {
       if (state.onSeeked) {
@@ -42,14 +51,10 @@
       }
     }
 
-    function cancel(video) {
-      const state = states.get(video);
-      if (!state) {
-        onSettled(video);
-        return;
-      }
-
+    function invalidateState(video, state) {
       state.token += 1;
+      state.seekToken += 1;
+      state.revision += 1;
       state.targetTime = null;
       state.committedTime = null;
       state.inFlight = false;
@@ -58,44 +63,115 @@
       clearCommitTimer(state);
       clearMaxCommitTimer(state);
       clearSeekListener(video, state);
-      onSettled(video);
     }
 
-    function getState(video) {
-      let state = states.get(video);
-      if (!state) {
-        state = {
-          targetTime: null,
-          committedTime: null,
-          inFlight: false,
-          kind: null,
-          token: 0,
-          commitTimer: null,
-          onSeeked: null,
-          maxCommitTimer: null,
-          checkpointCommitted: false,
-        };
-        states.set(video, state);
-        video.addEventListener("play", () => flush(video));
-        video.addEventListener("emptied", () => cancel(video));
+    function retireState(video, state) {
+      if (states.get(video) !== state) {
+        return false;
       }
+
+      states.delete(video);
+      const session = state.session;
+      invalidateState(video, state);
+      onSettled(video, session);
+      return true;
+    }
+
+    function ensureCurrentState(video, state, token) {
+      if (states.get(video) !== state || state.token !== token) {
+        return false;
+      }
+      if (!isCurrentSession(video, state.session)) {
+        retireState(video, state);
+        return false;
+      }
+      return true;
+    }
+
+    function cancel(video) {
+      const state = states.get(video);
+      if (state) {
+        retireState(video, state);
+      }
+    }
+
+    function createState(session) {
+      return {
+        session,
+        targetTime: null,
+        committedTime: null,
+        inFlight: false,
+        kind: null,
+        token: 0,
+        seekToken: 0,
+        revision: 0,
+        commitTimer: null,
+        onSeeked: null,
+        maxCommitTimer: null,
+        checkpointCommitted: false,
+      };
+    }
+
+    function getState(video, session) {
+      let state = states.get(video);
+      if (state && state.session === session) {
+        return state;
+      }
+
+      if (state) {
+        retireState(video, state);
+      }
+      if (!isCurrentSession(video, session)) {
+        return null;
+      }
+
+      state = createState(session);
+      states.set(video, state);
       return state;
     }
 
-    function settle(video, state) {
-      state.targetTime = null;
-      state.committedTime = null;
-      state.inFlight = false;
-      state.kind = null;
-      state.checkpointCommitted = false;
-      clearCommitTimer(state);
-      clearMaxCommitTimer(state);
-      clearSeekListener(video, state);
-      onSettled(video);
+    function settle(video, state, token) {
+      if (ensureCurrentState(video, state, token)) {
+        retireState(video, state);
+      }
     }
 
-    function completeSeek(video, state, token) {
-      if (token !== state.token) {
+    function startBufferedPreview(video, state, token, revision) {
+      if (
+        !ensureCurrentState(video, state, token)
+        || revision !== state.revision
+        || state.inFlight
+        || state.targetTime === null
+        || !video.paused
+        || !isTimeBuffered(video.buffered, state.targetTime)
+      ) {
+        return;
+      }
+
+      if (Math.abs(video.currentTime - state.targetTime) <= TIME_EPSILON) {
+        return;
+      }
+      assignSeek(video, state, state.targetTime, "preview", token);
+    }
+
+    function scheduleBufferedPreview(video, state, token) {
+      const revision = state.revision;
+      schedule(() => {
+        if (
+          ensureCurrentState(video, state, token)
+          && revision === state.revision
+        ) {
+          startBufferedPreview(video, state, token, revision);
+        }
+      });
+    }
+
+    function completeSeek(video, state, token, seekToken) {
+      if (
+        !ensureCurrentState(video, state, token)
+        || seekToken !== state.seekToken
+        || !state.inFlight
+      ) {
         return;
       }
 
@@ -108,7 +184,7 @@
           && state.targetTime !== null
           && isTimeBuffered(video.buffered, state.targetTime)
         ) {
-          schedule(() => startBufferedPreview(video, state));
+          scheduleBufferedPreview(video, state, token);
         }
         return;
       }
@@ -118,52 +194,51 @@
         && state.committedTime !== null
         && Math.abs(state.targetTime - state.committedTime) > TIME_EPSILON
       ) {
-        commitFinal(video, state);
+        commitFinal(video, state, token);
         return;
       }
 
-      settle(video, state);
+      settle(video, state, token);
     }
 
-    function assignSeek(video, state, targetTime, kind) {
+    function assignSeek(video, state, targetTime, kind, token) {
+      if (!ensureCurrentState(video, state, token)) {
+        return null;
+      }
+
       clearSeekListener(video, state);
-      state.token += 1;
-      const token = state.token;
+      state.seekToken += 1;
+      const seekToken = state.seekToken;
       state.committedTime = targetTime;
       state.inFlight = true;
       state.kind = kind;
-      state.onSeeked = () => completeSeek(video, state, token);
+      state.onSeeked = () => completeSeek(video, state, token, seekToken);
       video.addEventListener("seeked", state.onSeeked, { once: true });
 
       try {
         video.currentTime = targetTime;
         schedule(() => {
-          if (token === state.token && !video.seeking) {
-            completeSeek(video, state, token);
+          if (
+            ensureCurrentState(video, state, token)
+            && seekToken === state.seekToken
+            && state.inFlight
+            && !video.seeking
+          ) {
+            completeSeek(video, state, token, seekToken);
           }
         });
       } catch (_error) {
-        cancel(video);
+        retireState(video, state);
+        return null;
       }
+      return targetTime;
     }
 
-    function startBufferedPreview(video, state) {
-      if (
-        state.inFlight
-        || state.targetTime === null
-        || !video.paused
-        || !isTimeBuffered(video.buffered, state.targetTime)
-      ) {
-        return;
+    function commitTarget(video, state, kind, token) {
+      if (!ensureCurrentState(video, state, token)) {
+        return null;
       }
 
-      if (Math.abs(video.currentTime - state.targetTime) <= TIME_EPSILON) {
-        return;
-      }
-      assignSeek(video, state, state.targetTime, "preview");
-    }
-
-    function commitTarget(video, state, kind) {
       const final = kind === "final";
       if (final) {
         clearCommitTimer(state);
@@ -188,62 +263,95 @@
         state.committedTime = targetTime;
         state.kind = kind;
         if (final) {
-          settle(video, state);
+          settle(video, state, token);
         }
         return targetTime;
       }
 
-      assignSeek(video, state, targetTime, kind);
-      return targetTime;
+      return assignSeek(video, state, targetTime, kind, token);
     }
 
-    function commitCheckpoint(video, state) {
-      state.maxCommitTimer = null;
+    function commitCheckpoint(video, state, token) {
       state.checkpointCommitted = true;
-      return commitTarget(video, state, "checkpoint");
+      return commitTarget(video, state, "checkpoint", token);
     }
 
-    function commitFinal(video, state) {
-      return commitTarget(video, state, "final");
+    function commitFinal(video, state, token) {
+      return commitTarget(video, state, "final", token);
     }
 
-    function scheduleFinalCommit(video, state) {
+    function scheduleFinalCommit(video, state, token) {
       clearCommitTimer(state);
-      state.commitTimer = setTimer(() => {
-        state.commitTimer = null;
-        commitFinal(video, state);
+      let commitTimer;
+      commitTimer = setTimer(() => {
+        if (
+          ensureCurrentState(video, state, token)
+          && state.commitTimer === commitTimer
+        ) {
+          state.commitTimer = null;
+          commitFinal(video, state, token);
+        }
       }, commitDelay);
+      state.commitTimer = commitTimer;
 
       if (!state.checkpointCommitted && state.maxCommitTimer === null) {
-        state.maxCommitTimer = setTimer(
-          () => commitCheckpoint(video, state),
-          maxCommitDelay,
-        );
+        let maxCommitTimer;
+        maxCommitTimer = setTimer(() => {
+          if (
+            ensureCurrentState(video, state, token)
+            && state.maxCommitTimer === maxCommitTimer
+          ) {
+            state.maxCommitTimer = null;
+            commitCheckpoint(video, state, token);
+          }
+        }, maxCommitDelay);
+        state.maxCommitTimer = maxCommitTimer;
       }
     }
 
-    function seekBy(video, secondsDelta, bounds) {
-      const state = getState(video);
+    function seekBy(video, secondsDelta, bounds, session) {
+      if (!isCurrentSession(video, session)) {
+        return null;
+      }
+
+      const state = getState(video, session);
+      if (!state) {
+        return null;
+      }
+      const token = state.token;
       const baseline = state.targetTime === null ? video.currentTime : state.targetTime;
       const targetTime = calculateSeekTime(baseline, secondsDelta, bounds);
-      if (targetTime === null) {
+      if (
+        targetTime === null
+        || !ensureCurrentState(video, state, token)
+      ) {
         return null;
       }
 
       state.targetTime = targetTime;
-      scheduleFinalCommit(video, state);
+      state.revision += 1;
+      const revision = state.revision;
+      scheduleFinalCommit(video, state, token);
       if (isTimeBuffered(video.buffered, targetTime)) {
-        startBufferedPreview(video, state);
+        startBufferedPreview(video, state, token, revision);
       }
       return targetTime;
     }
 
-    function flush(video) {
-      const state = states.get(video);
-      if (!state || state.targetTime === null) {
+    function flush(video, session) {
+      if (!isCurrentSession(video, session)) {
         return null;
       }
-      return commitFinal(video, state);
+
+      const state = states.get(video);
+      if (!state) {
+        return null;
+      }
+      if (state.session !== session) {
+        retireState(video, state);
+        return null;
+      }
+      return commitFinal(video, state, state.token);
     }
 
     return { seekBy, flush, cancel, reset: cancel };

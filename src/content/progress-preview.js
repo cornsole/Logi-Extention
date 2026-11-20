@@ -68,26 +68,41 @@
   function createProgressPreview() {
     const states = new WeakMap();
 
-    function clear(video) {
-      const state = states.get(video);
-      if (!state) {
-        return;
-      }
+    function isCurrentSession(video, session) {
+      return Boolean(
+        session
+          && session.video === video
+          && typeof session.isCurrent === "function"
+          && session.isCurrent(),
+      );
+    }
 
+    function teardown(video, state, restoreTime) {
       if (state.timeObserver) {
         state.timeObserver.disconnect();
       }
       video.removeEventListener("play", state.onPlaybackStarted);
       video.removeEventListener("emptied", state.onMediaReplaced);
-      if (state.timeCurrent && state.timeCurrent.isConnected) {
+      if (restoreTime && state.timeCurrent && state.timeCurrent.isConnected) {
         state.timeCurrent.textContent = formatMediaTime(video.currentTime);
       }
       state.player.classList.remove(ACTIVE_CLASS);
       state.overlay.remove();
-      states.delete(video);
+      if (states.get(video) === state) {
+        states.delete(video);
+      }
     }
 
-    function createState(video) {
+    function clear(video, session) {
+      const state = states.get(video);
+      if (!state || state.session !== session) {
+        return;
+      }
+
+      teardown(video, state, isCurrentSession(video, session));
+    }
+
+    function createState(video, session) {
       const player = video.closest(".html5-video-player, #movie_player");
       const progressBar = player && player.querySelector(".ytp-progress-bar");
       if (!player || !progressBar) {
@@ -106,19 +121,44 @@
         ? player.querySelector(".ytp-time-current")
         : null;
       const state = {
+        session,
         player,
         overlay,
         timeCurrent,
         timeObserver: null,
         targetText: null,
-        onPlaybackStarted: () => clear(video),
-        onMediaReplaced: () => clear(video),
+        onPlaybackStarted: null,
+        onMediaReplaced: null,
+      };
+
+      function ownsState() {
+        return states.get(video) === state && state.session === session;
+      }
+
+      state.onPlaybackStarted = () => {
+        if (ownsState()) {
+          teardown(video, state, isCurrentSession(video, session));
+        }
+      };
+      // emptied means the media was replaced; video.currentTime no longer
+      // belongs to the previewed media, so never write it into the display.
+      state.onMediaReplaced = () => {
+        if (ownsState()) {
+          teardown(video, state, false);
+        }
       };
       video.addEventListener("play", state.onPlaybackStarted, { once: true });
       video.addEventListener("emptied", state.onMediaReplaced, { once: true });
 
       if (timeCurrent && root.MutationObserver) {
         state.timeObserver = new root.MutationObserver(() => {
+          if (!ownsState()) {
+            return;
+          }
+          if (!isCurrentSession(video, session)) {
+            teardown(video, state, false);
+            return;
+          }
           if (state.targetText !== null && timeCurrent.textContent !== state.targetText) {
             timeCurrent.textContent = state.targetText;
           }
@@ -134,18 +174,27 @@
       return state;
     }
 
-    function show(video, targetTime, bounds) {
+    function show(video, targetTime, bounds, session) {
+      if (!isCurrentSession(video, session)) {
+        return;
+      }
+
+      let state = states.get(video);
+      if (state && state.session !== session) {
+        teardown(video, state, false);
+        state = null;
+      }
+      if (state && !state.player.isConnected) {
+        teardown(video, state, false);
+        state = null;
+      }
+
       const ratio = calculateProgressRatio(targetTime, bounds);
       if (ratio === null) {
         return;
       }
 
-      let state = states.get(video);
-      if (state && !state.player.isConnected) {
-        clear(video);
-        state = null;
-      }
-      state = state || createState(video);
+      state = state || createState(video, session);
       if (!state) {
         return;
       }

@@ -3,19 +3,21 @@
 
   const wheelMath = root.YTWheel;
   const settingsApi = root.YTWheelSettings;
+  const mediaSession = root.YTMediaSession;
+  const sessionTracker = mediaSession.createMediaSessionTracker();
   const progressPreview = root.YTProgressPreview.createProgressPreview();
   const pausedSeeker = root.YTPausedSeeker.createPausedSeekCoordinator({
-    onSettled: (video) => progressPreview.clear(video),
+    onSettled: (video, session) => progressPreview.clear(video, session),
   });
   const PLAYER_SELECTOR = ".html5-video-player, #movie_player";
   const VOLUME_SLIDER_SELECTOR = ".ytp-volume-panel, .ytp-volume-slider, .ytp-volume-slider-handle";
-  const AD_STATE_CLASSES = ["ad-showing", "ad-interrupting"];
+  const MEDIA_RESET_EVENTS = ["emptied", "loadstart"];
 
   let settings = { ...settingsApi.DEFAULT_SETTINGS };
-  let pendingVideo = null;
-  let pendingPixels = 0;
-  let animationFrame = null;
-  const playbackListeners = new WeakSet();
+  // Queued wheel input: { video, player, session, pixels, frame }.
+  let pending = null;
+  const sessions = new WeakMap();
+  const playListeners = new WeakMap();
   const mediaListeners = new WeakSet();
   const adObservers = new WeakMap();
 
@@ -40,20 +42,96 @@
     const directVideo = elementFromPath(path, (element) => element.tagName === "VIDEO");
     return directVideo || player.querySelector("video");
   }
-  function isAdActive(player) {
-    return AD_STATE_CLASSES.some((className) => player.classList.contains(className));
+
+  // Ads are only seekable when the media reports a real, non-empty seekable range;
+  // a bare duration does not prove YouTube allows seeking inside the ad.
+  function getAdSeekBounds(video) {
+    const seekable = video.seekable;
+    if (!seekable || seekable.length === 0) {
+      return null;
+    }
+
+    const minimum = seekable.start(0);
+    const maximum = seekable.end(seekable.length - 1);
+    if (Number.isFinite(minimum) && Number.isFinite(maximum) && maximum > minimum) {
+      return { minimum, maximum };
+    }
+    return null;
   }
 
-  function cancelPendingSeek(video) {
-    if (pendingVideo === video) {
-      if (animationFrame !== null) {
-        root.cancelAnimationFrame(animationFrame);
-        animationFrame = null;
-      }
-      pendingVideo = null;
-      pendingPixels = 0;
+  function getBounds(video, player) {
+    return mediaSession.isAdActive(player)
+      ? getAdSeekBounds(video)
+      : wheelMath.getSeekBounds(video);
+  }
+
+  function dropPending(video) {
+    if (!pending || pending.video !== video) {
+      return;
+    }
+    if (pending.frame !== null) {
+      root.cancelAnimationFrame(pending.frame);
+    }
+    pending = null;
+  }
+
+  function removePlayListener(video) {
+    const entry = playListeners.get(video);
+    if (entry) {
+      video.removeEventListener("play", entry.listener);
+      playListeners.delete(video);
+    }
+  }
+
+  // Ends the video's media session: queued input is dropped (never flushed) and
+  // every listener, timer and preview owned by the old session is released.
+  function endSession(video) {
+    const session = sessions.get(video);
+    sessions.delete(video);
+    dropPending(video);
+    removePlayListener(video);
+    if (session) {
+      sessionTracker.invalidate(session);
     }
     pausedSeeker.cancel(video);
+    if (session) {
+      progressPreview.clear(video, session);
+    }
+  }
+
+  function isLive(video, session) {
+    if (session.isCurrent()) {
+      return true;
+    }
+    if (sessions.get(video) === session) {
+      endSession(video);
+    }
+    return false;
+  }
+
+  function acquireSession(video, player) {
+    const existing = sessions.get(video);
+    if (existing && existing.isCurrent()) {
+      return existing;
+    }
+    if (existing) {
+      endSession(video);
+    }
+
+    const session = sessionTracker.begin(video, player);
+    sessions.set(video, session);
+    return session;
+  }
+
+  // The user took over the seek bar: drop queued input and the gesture, but keep
+  // the media session itself.
+  function cancelPendingSeek(video) {
+    dropPending(video);
+    pausedSeeker.cancel(video);
+    const session = sessions.get(video);
+    if (session) {
+      progressPreview.clear(video, session);
+    }
   }
 
   function observeMediaLifecycle(video) {
@@ -61,7 +139,10 @@
       return;
     }
     mediaListeners.add(video);
-    video.addEventListener("emptied", () => cancelPendingSeek(video));
+    const onMediaReset = () => endSession(video);
+    for (const type of MEDIA_RESET_EVENTS) {
+      video.addEventListener(type, onMediaReset);
+    }
   }
 
   function observeAdLifecycle(player, video) {
@@ -71,9 +152,9 @@
       return;
     }
 
-    const state = { active: isAdActive(player), video };
+    const state = { active: mediaSession.isAdActive(player), video };
     const observer = new root.MutationObserver(() => {
-      const active = isAdActive(player);
+      const active = mediaSession.isAdActive(player);
       if (active === state.active) {
         return;
       }
@@ -83,10 +164,10 @@
       state.active = active;
       state.video = currentVideo;
       if (previousVideo) {
-        cancelPendingSeek(previousVideo);
+        endSession(previousVideo);
       }
       if (currentVideo && currentVideo !== previousVideo) {
-        cancelPendingSeek(currentVideo);
+        endSession(currentVideo);
       }
     });
     observer.observe(player, { attributes: true, attributeFilter: ["class"] });
@@ -94,23 +175,13 @@
     adObservers.set(player, state);
   }
 
-
-  function applyPendingSeek() {
-    animationFrame = null;
-    const video = pendingVideo;
-    const pixels = pendingPixels;
-    pendingVideo = null;
-    pendingPixels = 0;
-
-    const player = video && video.closest(PLAYER_SELECTOR);
-    if (!video || (player && isAdActive(player))) {
-      if (video) {
-        pausedSeeker.cancel(video);
-      }
+  function applySeek(entry) {
+    const { video, player, session, pixels } = entry;
+    if (pixels === 0 || !isLive(video, session)) {
       return;
     }
 
-    const bounds = wheelMath.getSeekBounds(video);
+    const bounds = getBounds(video, player);
     if (!bounds) {
       return;
     }
@@ -121,14 +192,15 @@
       settings.inverted,
     );
     if (video.paused) {
-      const targetTime = pausedSeeker.seekBy(video, seconds, bounds);
+      const targetTime = pausedSeeker.seekBy(video, seconds, bounds, session);
       if (targetTime !== null) {
-        progressPreview.show(video, targetTime, bounds);
+        progressPreview.show(video, targetTime, bounds, session);
       }
       return;
     }
 
-    pausedSeeker.reset(video);
+    pausedSeeker.cancel(video);
+    progressPreview.clear(video, session);
     const nextTime = wheelMath.calculateSeekTime(video.currentTime, seconds, bounds);
     if (nextTime === null || nextTime === video.currentTime) {
       return;
@@ -141,17 +213,42 @@
     }
   }
 
-  function queueSeek(video, pixels) {
-    if (pendingVideo && pendingVideo !== video) {
-      applyPendingSeek();
+  function takePending(entry) {
+    if (pending !== entry) {
+      return false;
+    }
+    if (entry.frame !== null) {
+      root.cancelAnimationFrame(entry.frame);
+      entry.frame = null;
+    }
+    pending = null;
+    return true;
+  }
+
+  function queueSeek(video, player, session, pixels) {
+    if (pending && pending.session !== session) {
+      const previous = pending;
+      takePending(previous);
+      // Input for another element still applies if its own session is live;
+      // input for an older session of this element is dropped.
+      if (previous.video !== video) {
+        applySeek(previous);
+      }
     }
 
-    pendingVideo = video;
-    pendingPixels += pixels;
-    observePlayback(video);
-    if (animationFrame === null) {
-      animationFrame = requestAnimationFrame(applyPendingSeek);
+    if (!pending) {
+      const entry = { video, player, session, pixels: 0, frame: null };
+      entry.frame = root.requestAnimationFrame(() => {
+        if (pending === entry) {
+          entry.frame = null;
+          pending = null;
+          applySeek(entry);
+        }
+      });
+      pending = entry;
     }
+    pending.pixels += pixels;
+    observePlayback(video, session);
   }
 
   function handleWheel(event) {
@@ -175,11 +272,8 @@
     }
     observeMediaLifecycle(video);
     observeAdLifecycle(player, video);
-    if (isAdActive(player)) {
-      cancelPendingSeek(video);
-      return;
-    }
-    if (!wheelMath.getSeekBounds(video)) {
+    const session = acquireSession(video, player);
+    if (!getBounds(video, player)) {
       return;
     }
 
@@ -189,7 +283,7 @@
     }
 
     event.preventDefault();
-    queueSeek(video, pixels);
+    queueSeek(video, player, session, pixels);
   }
 
   function handlePointerDown(event) {
@@ -207,29 +301,34 @@
     }
   }
 
-  function handlePlaybackStart(video) {
-    playbackListeners.delete(video);
-    const player = video.closest(PLAYER_SELECTOR);
-    if (player && isAdActive(player)) {
-      cancelPendingSeek(video);
+  function handlePlaybackStart(video, session, listener) {
+    const entry = playListeners.get(video);
+    if (!entry || entry.listener !== listener) {
       return;
     }
-    if (pendingVideo === video && pendingPixels !== 0) {
-      if (animationFrame !== null) {
-        root.cancelAnimationFrame(animationFrame);
-        animationFrame = null;
-      }
-      applyPendingSeek();
+    playListeners.delete(video);
+    if (!isLive(video, session)) {
+      return;
     }
-    pausedSeeker.flush(video);
+
+    if (pending && pending.video === video && pending.session === session) {
+      const queued = pending;
+      takePending(queued);
+      applySeek(queued);
+    }
+    pausedSeeker.flush(video, session);
   }
 
-  function observePlayback(video) {
-    if (playbackListeners.has(video)) {
+  function observePlayback(video, session) {
+    const entry = playListeners.get(video);
+    if (entry && entry.session === session) {
       return;
     }
-    playbackListeners.add(video);
-    video.addEventListener("play", () => handlePlaybackStart(video), { once: true });
+    removePlayListener(video);
+
+    const listener = () => handlePlaybackStart(video, session, listener);
+    playListeners.set(video, { session, listener });
+    video.addEventListener("play", listener, { once: true });
   }
 
   settingsApi.loadSettings().then((loaded) => {
