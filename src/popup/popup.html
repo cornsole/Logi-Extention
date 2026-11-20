@@ -26,6 +26,35 @@
         <span>가로 휠 방향 반전</span>
       </label>
 
+      <h2>탐색 요청</h2>
+
+      <div class="setting-heading">
+        <label for="request-interval">요청 간격</label>
+        <output id="request-interval-value" for="request-interval">50ms</output>
+      </div>
+      <input id="request-interval" type="range" min="0" max="200" step="10" value="50" aria-describedby="request-interval-hint">
+      <div class="range-labels" aria-hidden="true">
+        <span>입력마다</span>
+        <span>200ms</span>
+      </div>
+      <p id="request-interval-hint" class="hint">연속 입력 중 최신 위치를 다시 요청하는 최소 간격입니다. 낮을수록 빠르게 따라가지만 취소되는 요청이 늘어납니다.</p>
+
+      <div class="setting-heading">
+        <label for="gesture-end">입력 종료 대기</label>
+        <output id="gesture-end-value" for="gesture-end">80ms</output>
+      </div>
+      <input id="gesture-end" type="range" min="20" max="300" step="10" value="80" aria-describedby="gesture-end-hint">
+      <div class="range-labels" aria-hidden="true">
+        <span>20ms</span>
+        <span>300ms</span>
+      </div>
+      <p id="gesture-end-hint" class="hint">마지막 입력 후 이 시간 동안 입력이 없으면 휠 조작이 끝난 것으로 보고 최종 위치를 확정합니다.</p>
+
+      <label class="checkbox-row">
+        <input id="ad-seeking" type="checkbox" checked>
+        <span>광고 중 탐색 허용</span>
+      </label>
+
       <button id="reset" type="button">기본값 복원</button>
       <p id="status" class="status" role="status" aria-live="polite"></p>
     </main>

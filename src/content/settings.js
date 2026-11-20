@@ -4,19 +4,40 @@
   const DEFAULT_SETTINGS = Object.freeze({
     secondsPerHundredPixels: 2,
     inverted: true,
+    requestIntervalMs: 50,
+    gestureEndDelayMs: 80,
+    adSeeking: true,
   });
-  const MIN_SENSITIVITY = 1;
-  const MAX_SENSITIVITY = 20;
+  const LIMITS = Object.freeze({
+    secondsPerHundredPixels: Object.freeze({ minimum: 1, maximum: 20 }),
+    requestIntervalMs: Object.freeze({ minimum: 0, maximum: 200 }),
+    gestureEndDelayMs: Object.freeze({ minimum: 20, maximum: 300 }),
+  });
+  const MIN_SENSITIVITY = LIMITS.secondsPerHundredPixels.minimum;
+  const MAX_SENSITIVITY = LIMITS.secondsPerHundredPixels.maximum;
+
+  function normalizeNumber(candidate, key) {
+    const value = candidate && candidate[key];
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return DEFAULT_SETTINGS[key];
+    }
+    const { minimum, maximum } = LIMITS[key];
+    return Math.min(Math.max(Math.round(value), minimum), maximum);
+  }
+
+  function normalizeBoolean(candidate, key) {
+    return candidate && typeof candidate[key] === "boolean"
+      ? candidate[key]
+      : DEFAULT_SETTINGS[key];
+  }
 
   function normalizeSettings(candidate) {
-    const sensitivity = Number(candidate && candidate.secondsPerHundredPixels);
     return {
-      secondsPerHundredPixels: Number.isFinite(sensitivity)
-        ? Math.min(Math.max(sensitivity, MIN_SENSITIVITY), MAX_SENSITIVITY)
-        : DEFAULT_SETTINGS.secondsPerHundredPixels,
-      inverted: candidate && typeof candidate.inverted === "boolean"
-        ? candidate.inverted
-        : DEFAULT_SETTINGS.inverted,
+      secondsPerHundredPixels: normalizeNumber(candidate, "secondsPerHundredPixels"),
+      inverted: normalizeBoolean(candidate, "inverted"),
+      requestIntervalMs: normalizeNumber(candidate, "requestIntervalMs"),
+      gestureEndDelayMs: normalizeNumber(candidate, "gestureEndDelayMs"),
+      adSeeking: normalizeBoolean(candidate, "adSeeking"),
     };
   }
 
@@ -79,6 +100,7 @@
 
   const api = {
     DEFAULT_SETTINGS,
+    LIMITS,
     MIN_SENSITIVITY,
     MAX_SENSITIVITY,
     normalizeSettings,

@@ -60,9 +60,10 @@
   }
 
   function getBounds(video, player) {
-    return mediaSession.isAdActive(player)
-      ? getAdSeekBounds(video)
-      : wheelMath.getSeekBounds(video);
+    if (!mediaSession.isAdActive(player)) {
+      return wheelMath.getSeekBounds(video);
+    }
+    return settings.adSeeking ? getAdSeekBounds(video) : null;
   }
 
   function dropPending(video) {
@@ -315,12 +316,17 @@
     video.addEventListener("play", listener, { once: true });
   }
 
-  settingsApi.loadSettings().then((loaded) => {
-    settings = loaded;
-  });
-  settingsApi.watchSettings((updated) => {
-    settings = updated;
-  });
+  function applySettings(next) {
+    settings = next;
+    pausedSeeker.setTiming({
+      throttleInterval: next.requestIntervalMs,
+      commitDelay: next.gestureEndDelayMs,
+    });
+  }
+
+  applySettings(settings);
+  settingsApi.loadSettings().then(applySettings);
+  settingsApi.watchSettings(applySettings);
 
   document.addEventListener("wheel", handleWheel, { capture: true, passive: false });
   document.addEventListener("pointerdown", handlePointerDown, { capture: true });

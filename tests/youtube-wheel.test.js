@@ -108,7 +108,15 @@ class FakeDocument {
   }
 }
 
-function createHarness() {
+function createHarness(settingOverrides = {}) {
+  const settings = {
+    secondsPerHundredPixels: 2,
+    inverted: true,
+    requestIntervalMs: 50,
+    gestureEndDelayMs: 80,
+    adSeeking: true,
+    ...settingOverrides,
+  };
   const document = new FakeDocument();
   const frames = new Map();
   const timers = new Map();
@@ -155,8 +163,8 @@ function createHarness() {
       timers.delete(id);
     },
     YTWheelSettings: {
-      DEFAULT_SETTINGS: { secondsPerHundredPixels: 2, inverted: true },
-      loadSettings: () => Promise.resolve({ secondsPerHundredPixels: 2, inverted: true }),
+      DEFAULT_SETTINGS: settings,
+      loadSettings: () => Promise.resolve(settings),
       watchSettings: () => {},
     },
     YTProgressPreview: {
@@ -301,6 +309,18 @@ test("leaves ads without a real seekable range to YouTube", () => {
 
   harness.video.seekable = ranges([5, 5]);
   assert.equal(harness.wheel(100).defaultPrevented, false);
+});
+
+test("leaves seekable ads to YouTube when ad seeking is disabled", () => {
+  const harness = createHarness({ adSeeking: false });
+  harness.enterAd("blob:ad");
+  harness.video.paused = false;
+
+  const event = harness.wheel(100);
+  harness.settle();
+
+  assert.equal(event.defaultPrevented, false);
+  assert.equal(harness.video.currentTime, 10);
 });
 
 test("keeps the duration fallback for content without a seekable range", () => {

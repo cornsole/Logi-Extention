@@ -14,7 +14,7 @@ A Chrome and Firefox extension that lets horizontal-wheel mice such as the Logit
 - Direction inversion is enabled by default and can be changed in the popup
 - Preserves the current playback state while seeking
 - Shows the target time and progress immediately while paused, independently of media loading
-- Updates buffered targets immediately while paused; other seeks start immediately and then follow the latest target at most every 50ms, during playback as well
+- Updates buffered targets immediately while paused; other seeks start immediately and then follow the latest target at most every 50ms, during playback as well (request interval and gesture-end delay are adjustable in the popup)
 - Supports seeking within seekable YouTube ads and discards ad-owned targets, timers, and previews when media sessions change
 - Preserves the volume slider's native horizontal-wheel behavior
 - Clamps VOD and DVR live-stream seeking to the actual seekable range
@@ -56,18 +56,21 @@ Temporary add-ons are removed when Firefox exits. Permanent installation require
 1. Open a YouTube video.
 2. Place the mouse pointer over the player.
 3. With the default settings, rotate the horizontal wheel right to seek forward and left to seek backward.
-4. Select the extension icon in the browser toolbar to change sensitivity and direction.
+4. Select the extension icon in the browser toolbar to change sensitivity, direction, seek-request timing, and ad seeking.
 
 | Setting | Default | Description |
 |---|---:|---|
 | Seek sensitivity | 2 seconds / 100px | Controls how much playback time changes for the same wheel movement. |
 | Invert horizontal-wheel direction | On | Swaps the left and right seek directions. |
+| Request interval | 50ms | Minimum time between seek requests for unbuffered targets or during playback, `0–200ms`. `0` requests on every input. |
+| Gesture-end delay | 80ms | Idle time after the last input before the gesture is finalized, `20–300ms`. |
+| Seek inside ads | On | Allows horizontal-wheel seeking inside seekable YouTube ads. |
 
 Settings are stored in the browser's synchronized storage and are applied immediately to open YouTube tabs.
 
-Both wheels can adjust the sensitivity slider while the pointer is over it:
+Both wheels can adjust any slider while the pointer is over it:
 
-- Standard wheel: scroll up to increase sensitivity and down to decrease it
+- Standard wheel: scroll up to increase the value and down to decrease it
 - Horizontal wheel: adjust left or right, with the **Invert horizontal-wheel direction** setting applied
 
 ## Input conflict prevention
@@ -122,5 +125,5 @@ npm run package
 - `src/content/media-session.js`: per-media sessions that separate ads, content, and source changes
 - `src/content/youtube-wheel.js`: YouTube player event handling
 - `src/popup/wheel-input.js`: standard- and horizontal-wheel direction mapping for the sensitivity slider
-- `src/popup`: sensitivity and direction settings UI
+- `src/popup`: sensitivity, direction, request timing, and ad seeking settings UI
 - `scripts/package.mjs`: creates browser-specific distributions

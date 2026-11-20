@@ -121,6 +121,25 @@ function createCoordinator(options) {
   return { clock, coordinator, settled, settledSessions };
 }
 
+test("applies changed request timing to the next wheel input", () => {
+  const video = new FakeVideo(createRanges([[0, 2]]));
+  const { session } = createSession(video, 1);
+  const { clock, coordinator } = createCoordinator();
+  const bounds = { minimum: 0, maximum: 100 };
+
+  coordinator.setTiming({ throttleInterval: 0 });
+  coordinator.seekBy(video, 10, bounds, session);
+  coordinator.seekBy(video, 10, bounds, session);
+  assert.deepEqual(video.assignments, [10, 20]);
+
+  coordinator.setTiming({ throttleInterval: 100, commitDelay: 300 });
+  coordinator.seekBy(video, 10, bounds, session);
+  clock.advance(99);
+  assert.deepEqual(video.assignments, [10, 20]);
+  clock.advance(1);
+  assert.deepEqual(video.assignments, [10, 20, 30]);
+});
+
 function createQueuedSchedule() {
   const queue = [];
   return {

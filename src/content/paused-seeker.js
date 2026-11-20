@@ -13,12 +13,20 @@
     const setTimer = config.setTimer || ((callback, delay) => setTimeout(callback, delay));
     const clearTimer = config.clearTimer || ((timer) => clearTimeout(timer));
     const now = config.now || (() => root.performance.now());
-    const commitDelay = Number.isFinite(config.commitDelay)
-      ? Math.max(config.commitDelay, 0)
-      : DEFAULT_COMMIT_DELAY_MS;
-    const throttleInterval = Number.isFinite(config.throttleInterval)
-      ? Math.max(config.throttleInterval, 0)
-      : DEFAULT_THROTTLE_INTERVAL_MS;
+    let commitDelay = DEFAULT_COMMIT_DELAY_MS;
+    let throttleInterval = DEFAULT_THROTTLE_INTERVAL_MS;
+
+    function setTiming(timing) {
+      const next = timing || {};
+      if (Number.isFinite(next.commitDelay)) {
+        commitDelay = Math.max(next.commitDelay, 0);
+      }
+      if (Number.isFinite(next.throttleInterval)) {
+        throttleInterval = Math.max(next.throttleInterval, 0);
+      }
+    }
+
+    setTiming(config);
     const onSettled = config.onSettled || (() => {});
     const states = new WeakMap();
 
@@ -369,7 +377,7 @@
       return commitFinal(video, state, state.token);
     }
 
-    return { seekBy, flush, cancel, reset: cancel };
+    return { seekBy, flush, cancel, reset: cancel, setTiming };
   }
 
   const api = { DEFAULT_COMMIT_DELAY_MS, DEFAULT_THROTTLE_INTERVAL_MS, createPausedSeekCoordinator };
