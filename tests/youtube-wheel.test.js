@@ -135,6 +135,7 @@ function createHarness() {
     Promise,
     document,
     innerWidth: 1280,
+    performance: { now: () => 0 },
     requestAnimationFrame(callback) {
       const id = nextId;
       nextId += 1;

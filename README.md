@@ -14,7 +14,7 @@ A Chrome and Firefox extension that lets horizontal-wheel mice such as the Logit
 - Direction inversion is enabled by default and can be changed in the popup
 - Preserves the current playback state while seeking
 - Shows the target time and progress immediately while paused, independently of media loading
-- Updates buffered targets immediately; unbuffered gestures start loading within 100ms and commit the final target after input stops
+- Updates buffered targets immediately while paused; other seeks start immediately and then follow the latest target at most every 50ms, during playback as well
 - Supports seeking within seekable YouTube ads and discards ad-owned targets, timers, and previews when media sessions change
 - Preserves the volume slider's native horizontal-wheel behavior
 - Clamps VOD and DVR live-stream seeking to the actual seekable range

@@ -2,7 +2,7 @@
   "use strict";
 
   const DEFAULT_COMMIT_DELAY_MS = 80;
-  const DEFAULT_MAX_COMMIT_DELAY_MS = 100;
+  const DEFAULT_THROTTLE_INTERVAL_MS = 50;
   const TIME_EPSILON = 0.01;
 
   function createPausedSeekCoordinator(options) {
@@ -12,12 +12,13 @@
     const schedule = config.schedule || ((callback) => requestAnimationFrame(callback));
     const setTimer = config.setTimer || ((callback, delay) => setTimeout(callback, delay));
     const clearTimer = config.clearTimer || ((timer) => clearTimeout(timer));
+    const now = config.now || (() => root.performance.now());
     const commitDelay = Number.isFinite(config.commitDelay)
       ? Math.max(config.commitDelay, 0)
       : DEFAULT_COMMIT_DELAY_MS;
-    const maxCommitDelay = Number.isFinite(config.maxCommitDelay)
-      ? Math.max(config.maxCommitDelay, commitDelay)
-      : Math.max(DEFAULT_MAX_COMMIT_DELAY_MS, commitDelay);
+    const throttleInterval = Number.isFinite(config.throttleInterval)
+      ? Math.max(config.throttleInterval, 0)
+      : DEFAULT_THROTTLE_INTERVAL_MS;
     const onSettled = config.onSettled || (() => {});
     const states = new WeakMap();
 
@@ -37,10 +38,10 @@
       }
     }
 
-    function clearMaxCommitTimer(state) {
-      if (state.maxCommitTimer !== null) {
-        clearTimer(state.maxCommitTimer);
-        state.maxCommitTimer = null;
+    function clearThrottleTimer(state) {
+      if (state.throttleTimer !== null) {
+        clearTimer(state.throttleTimer);
+        state.throttleTimer = null;
       }
     }
 
@@ -59,9 +60,8 @@
       state.committedTime = null;
       state.inFlight = false;
       state.kind = null;
-      state.checkpointCommitted = false;
       clearCommitTimer(state);
-      clearMaxCommitTimer(state);
+      clearThrottleTimer(state);
       clearSeekListener(video, state);
     }
 
@@ -107,8 +107,8 @@
         revision: 0,
         commitTimer: null,
         onSeeked: null,
-        maxCommitTimer: null,
-        checkpointCommitted: false,
+        throttleTimer: null,
+        lastCommitAt: null,
       };
     }
 
@@ -142,7 +142,6 @@
         || revision !== state.revision
         || state.inFlight
         || state.targetTime === null
-        || !video.paused
         || !isTimeBuffered(video.buffered, state.targetTime)
       ) {
         return;
@@ -210,6 +209,9 @@
       state.seekToken += 1;
       const seekToken = state.seekToken;
       state.committedTime = targetTime;
+      if (kind !== "preview") {
+        state.lastCommitAt = now();
+      }
       state.inFlight = true;
       state.kind = kind;
       state.onSeeked = () => completeSeek(video, state, token, seekToken);
@@ -242,7 +244,7 @@
       const final = kind === "final";
       if (final) {
         clearCommitTimer(state);
-        clearMaxCommitTimer(state);
+        clearThrottleTimer(state);
       }
 
       const targetTime = state.targetTime;
@@ -251,11 +253,13 @@
       }
 
       if (
-        state.inFlight
-        && state.committedTime !== null
+        state.committedTime !== null
         && Math.abs(state.committedTime - targetTime) <= TIME_EPSILON
       ) {
         state.kind = kind;
+        if (final && !state.inFlight) {
+          settle(video, state, token);
+        }
         return targetTime;
       }
 
@@ -271,8 +275,7 @@
       return assignSeek(video, state, targetTime, kind, token);
     }
 
-    function commitCheckpoint(video, state, token) {
-      state.checkpointCommitted = true;
+    function commitThrottled(video, state, token) {
       return commitTarget(video, state, "checkpoint", token);
     }
 
@@ -293,20 +296,30 @@
         }
       }, commitDelay);
       state.commitTimer = commitTimer;
+    }
 
-      if (!state.checkpointCommitted && state.maxCommitTimer === null) {
-        let maxCommitTimer;
-        maxCommitTimer = setTimer(() => {
-          if (
-            ensureCurrentState(video, state, token)
-            && state.maxCommitTimer === maxCommitTimer
-          ) {
-            state.maxCommitTimer = null;
-            commitCheckpoint(video, state, token);
-          }
-        }, maxCommitDelay);
-        state.maxCommitTimer = maxCommitTimer;
+    function scheduleThrottledCommit(video, state, token) {
+      if (state.throttleTimer !== null) {
+        return;
       }
+
+      const elapsed = state.lastCommitAt === null ? Infinity : now() - state.lastCommitAt;
+      if (elapsed >= throttleInterval) {
+        commitThrottled(video, state, token);
+        return;
+      }
+
+      let throttleTimer;
+      throttleTimer = setTimer(() => {
+        if (
+          ensureCurrentState(video, state, token)
+          && state.throttleTimer === throttleTimer
+        ) {
+          state.throttleTimer = null;
+          commitThrottled(video, state, token);
+        }
+      }, throttleInterval - elapsed);
+      state.throttleTimer = throttleTimer;
     }
 
     function seekBy(video, secondsDelta, bounds, session) {
@@ -332,8 +345,10 @@
       state.revision += 1;
       const revision = state.revision;
       scheduleFinalCommit(video, state, token);
-      if (isTimeBuffered(video.buffered, targetTime)) {
+      if (video.paused && isTimeBuffered(video.buffered, targetTime)) {
         startBufferedPreview(video, state, token, revision);
+      } else {
+        scheduleThrottledCommit(video, state, token);
       }
       return targetTime;
     }
@@ -357,7 +372,7 @@
     return { seekBy, flush, cancel, reset: cancel };
   }
 
-  const api = { DEFAULT_COMMIT_DELAY_MS, createPausedSeekCoordinator };
+  const api = { DEFAULT_COMMIT_DELAY_MS, DEFAULT_THROTTLE_INTERVAL_MS, createPausedSeekCoordinator };
   root.YTPausedSeeker = api;
 
   if (typeof module !== "undefined" && module.exports) {

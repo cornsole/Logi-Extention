@@ -191,25 +191,9 @@
       settings.secondsPerHundredPixels,
       settings.inverted,
     );
-    if (video.paused) {
-      const targetTime = pausedSeeker.seekBy(video, seconds, bounds, session);
-      if (targetTime !== null) {
-        progressPreview.show(video, targetTime, bounds, session);
-      }
-      return;
-    }
-
-    pausedSeeker.cancel(video);
-    progressPreview.clear(video, session);
-    const nextTime = wheelMath.calculateSeekTime(video.currentTime, seconds, bounds);
-    if (nextTime === null || nextTime === video.currentTime) {
-      return;
-    }
-
-    try {
-      video.currentTime = nextTime;
-    } catch (_error) {
-      // Media can become detached between the wheel event and this animation frame.
+    const targetTime = pausedSeeker.seekBy(video, seconds, bounds, session);
+    if (targetTime !== null && video.paused) {
+      progressPreview.show(video, targetTime, bounds, session);
     }
   }
 

@@ -109,8 +109,9 @@ function createCoordinator(options) {
     schedule: (callback) => callback(),
     setTimer: (callback, delay) => clock.setTimer(callback, delay),
     clearTimer: (timer) => clock.clearTimer(timer),
+    now: () => clock.now,
     commitDelay: 80,
-    maxCommitDelay: 100,
+    throttleInterval: 50,
     onSettled: (video, session) => {
       settled.push(video);
       settledSessions.push(session);
@@ -133,56 +134,55 @@ function createQueuedSchedule() {
   };
 }
 
-test("commits only the final unbuffered target after the wheel gesture ends", () => {
+test("commits the first unbuffered target immediately and throttles the latest", () => {
   const video = new FakeVideo(createRanges([[0, 2]]));
   const { session } = createSession(video, 1);
   const { clock, coordinator } = createCoordinator();
   const bounds = { minimum: 0, maximum: 100 };
 
   assert.equal(coordinator.seekBy(video, 10, bounds, session), 10);
+  assert.deepEqual(video.assignments, [10]);
   assert.equal(coordinator.seekBy(video, 5, bounds, session), 15);
   assert.equal(coordinator.seekBy(video, 5, bounds, session), 20);
-  assert.deepEqual(video.assignments, []);
-
-  clock.advance(79);
-  assert.deepEqual(video.assignments, []);
-  clock.advance(1);
-  assert.deepEqual(video.assignments, [20]);
-});
-
-test("commits a checkpoint during a long unbuffered wheel gesture", () => {
-  const video = new FakeVideo(createRanges([[0, 2]]));
-  const { session } = createSession(video, 1);
-  const { clock, coordinator } = createCoordinator();
-  const bounds = { minimum: 0, maximum: 100 };
-
-  coordinator.seekBy(video, 10, bounds, session);
-  clock.advance(30);
-  coordinator.seekBy(video, 10, bounds, session);
-  clock.advance(30);
-  coordinator.seekBy(video, 10, bounds, session);
-  clock.advance(40);
-  assert.deepEqual(video.assignments, [30]);
-
-  coordinator.seekBy(video, 10, bounds, session);
-  clock.advance(40);
-  coordinator.seekBy(video, 10, bounds, session);
-  clock.advance(80);
-  assert.deepEqual(video.assignments, [30, 50]);
-});
-
-test("a newer wheel gesture preempts an older final seek after its idle delay", () => {
-  const video = new FakeVideo(createRanges([[0, 2]]));
-  const { session } = createSession(video, 1);
-  const { clock, coordinator } = createCoordinator();
-  const bounds = { minimum: 0, maximum: 100 };
-
-  coordinator.seekBy(video, 10, bounds, session);
-  clock.advance(80);
   assert.deepEqual(video.assignments, [10]);
 
+  clock.advance(49);
+  assert.deepEqual(video.assignments, [10]);
+  clock.advance(1);
+  assert.deepEqual(video.assignments, [10, 20]);
+});
+
+test("keeps loading the latest unbuffered target at the throttle cadence", () => {
+  const video = new FakeVideo(createRanges([[0, 2]]));
+  const { session } = createSession(video, 1);
+  const { clock, coordinator } = createCoordinator();
+  const bounds = { minimum: 0, maximum: 100 };
+
   coordinator.seekBy(video, 10, bounds, session);
+  clock.advance(30);
+  coordinator.seekBy(video, 10, bounds, session);
+  clock.advance(20);
+  assert.deepEqual(video.assignments, [10, 20]);
+
+  clock.advance(10);
+  coordinator.seekBy(video, 10, bounds, session);
+  clock.advance(39);
+  assert.deepEqual(video.assignments, [10, 20]);
+  clock.advance(1);
+  assert.deepEqual(video.assignments, [10, 20, 30]);
+});
+
+test("a new wheel gesture immediately preempts an older unbuffered seek", () => {
+  const video = new FakeVideo(createRanges([[0, 2]]));
+  const { session } = createSession(video, 1);
+  const { clock, coordinator } = createCoordinator();
+  const bounds = { minimum: 0, maximum: 100 };
+
+  coordinator.seekBy(video, 10, bounds, session);
+  assert.deepEqual(video.assignments, [10]);
   clock.advance(80);
+
+  coordinator.seekBy(video, 10, bounds, session);
   assert.deepEqual(video.assignments, [10, 20]);
 });
 
@@ -206,7 +206,56 @@ test("updates buffered targets without waiting for the gesture to end", () => {
   assert.deepEqual(settledSessions, [session]);
 });
 
-test("flushes the latest target immediately when playback starts", () => {
+test("throttles large unbuffered wheel input during playback", () => {
+  const video = new FakeVideo(createRanges([[0, 2]]));
+  video.paused = false;
+  const { session } = createSession(video, 1);
+  const { clock, coordinator } = createCoordinator();
+  const bounds = { minimum: 0, maximum: 600 };
+
+  for (let index = 0; index < 10; index += 1) {
+    coordinator.seekBy(video, 20, bounds, session);
+  }
+  assert.deepEqual(video.assignments, [20]);
+
+  clock.advance(50);
+  assert.deepEqual(video.assignments, [20, 200]);
+});
+
+test("throttles buffered wheel input during playback", () => {
+  const video = new FakeVideo(createRanges([[0, 100]]));
+  video.paused = false;
+  const { session } = createSession(video, 1);
+  const { clock, coordinator } = createCoordinator();
+  const bounds = { minimum: 0, maximum: 100 };
+
+  for (let index = 0; index < 5; index += 1) {
+    coordinator.seekBy(video, 2, bounds, session);
+    video.finishSeek();
+  }
+  assert.deepEqual(video.assignments, [2]);
+
+  clock.advance(50);
+  assert.deepEqual(video.assignments, [2, 10]);
+});
+
+test("settles a reached target without seeking back while playback advances", () => {
+  const video = new FakeVideo(createRanges([[0, 2]]));
+  video.paused = false;
+  const { session } = createSession(video, 1);
+  const { clock, coordinator, settled } = createCoordinator();
+  const bounds = { minimum: 0, maximum: 600 };
+
+  coordinator.seekBy(video, 30, bounds, session);
+  video.finishSeek();
+  video._currentTime = 30.5;
+  clock.advance(80);
+
+  assert.deepEqual(video.assignments, [30]);
+  assert.deepEqual(settled, [video]);
+});
+
+test("flushes the latest throttled target immediately when playback starts", () => {
   const video = new FakeVideo(createRanges([[0, 2]]));
   const { session } = createSession(video, 1);
   const { coordinator } = createCoordinator();
@@ -214,9 +263,10 @@ test("flushes the latest target immediately when playback starts", () => {
   video.addEventListener("play", () => coordinator.flush(video, session));
 
   coordinator.seekBy(video, 30, bounds, session);
-  assert.deepEqual(video.assignments, []);
-  video.startPlayback();
+  coordinator.seekBy(video, 10, bounds, session);
   assert.deepEqual(video.assignments, [30]);
+  video.startPlayback();
+  assert.deepEqual(video.assignments, [30, 40]);
 });
 
 test("the coordinator leaves play and emptied lifecycle to its caller", () => {
@@ -226,26 +276,28 @@ test("the coordinator leaves play and emptied lifecycle to its caller", () => {
   const bounds = { minimum: 0, maximum: 100 };
 
   coordinator.seekBy(video, 30, bounds, session);
+  coordinator.seekBy(video, 10, bounds, session);
   video.startPlayback();
   video.dispatchEvent(new Event("emptied"));
-  assert.deepEqual(video.assignments, []);
+  assert.deepEqual(video.assignments, [30]);
   assert.deepEqual(settled, []);
 
   clock.advance(80);
-  assert.deepEqual(video.assignments, [30]);
+  assert.deepEqual(video.assignments, [30, 40]);
 });
 
-test("cancel discards a pending wheel target", () => {
+test("cancel discards a pending throttled target", () => {
   const video = new FakeVideo(createRanges([[0, 2]]));
   const { session } = createSession(video, 1);
   const { clock, coordinator, settled, settledSessions } = createCoordinator();
   const bounds = { minimum: 0, maximum: 100 };
 
   coordinator.seekBy(video, 30, bounds, session);
+  coordinator.seekBy(video, 10, bounds, session);
   coordinator.cancel(video);
   clock.advance(200);
 
-  assert.deepEqual(video.assignments, []);
+  assert.deepEqual(video.assignments, [30]);
   assert.deepEqual(settled, [video]);
   assert.deepEqual(settledSessions, [session]);
 });
@@ -282,37 +334,34 @@ test("ignores seek and flush calls without a current session for the video", () 
   assert.deepEqual(settled, []);
 });
 
-test("a stale idle timer assigns nothing after its session is invalidated", () => {
+test("a stale throttle timer assigns nothing after its session is invalidated", () => {
   const video = new FakeVideo(createRanges([[0, 2]]));
   const old = createSession(video, 1);
   const { clock, coordinator, settledSessions } = createCoordinator();
   const bounds = { minimum: 0, maximum: 100 };
 
   coordinator.seekBy(video, 30, bounds, old.session);
+  coordinator.seekBy(video, 10, bounds, old.session);
   old.invalidate();
   clock.advance(200);
 
-  assert.deepEqual(video.assignments, []);
+  assert.deepEqual(video.assignments, [30]);
   assert.deepEqual(settledSessions, [old.session]);
 });
 
-test("a stale checkpoint timer assigns nothing after its session is invalidated", () => {
+test("a stale idle timer assigns nothing after its session is invalidated", () => {
   const video = new FakeVideo(createRanges([[0, 2]]));
   const old = createSession(video, 1);
   const { clock, coordinator, settledSessions } = createCoordinator();
   const bounds = { minimum: 0, maximum: 100 };
 
   coordinator.seekBy(video, 10, bounds, old.session);
-  clock.advance(30);
-  coordinator.seekBy(video, 10, bounds, old.session);
-  clock.advance(30);
+  clock.advance(60);
   coordinator.seekBy(video, 10, bounds, old.session);
   old.invalidate();
-  clock.advance(40);
-  assert.deepEqual(video.assignments, []);
-
   clock.advance(200);
-  assert.deepEqual(video.assignments, []);
+
+  assert.deepEqual(video.assignments, [10, 20]);
   assert.deepEqual(settledSessions, [old.session]);
 });
 
@@ -323,16 +372,16 @@ test("a new session discards the old target and its pending timers", () => {
   const bounds = { minimum: 0, maximum: 100 };
 
   coordinator.seekBy(video, 30, bounds, old.session);
-  clock.advance(50);
+  coordinator.seekBy(video, 10, bounds, old.session);
+  clock.advance(20);
   old.invalidate();
   const next = createSession(video, 2);
-  assert.equal(coordinator.seekBy(video, 5, bounds, next.session), 5);
+  assert.equal(coordinator.seekBy(video, 5, bounds, next.session), 35);
   assert.deepEqual(settledSessions, [old.session]);
+  assert.deepEqual(video.assignments, [30, 35]);
 
-  clock.advance(50);
-  assert.deepEqual(video.assignments, []);
-  clock.advance(30);
-  assert.deepEqual(video.assignments, [5]);
+  clock.advance(200);
+  assert.deepEqual(video.assignments, [30, 35]);
 });
 
 test("a stale scheduled buffered preview cannot assign the old target", () => {
@@ -359,7 +408,7 @@ test("a stale scheduled buffered preview cannot assign the old target", () => {
   assert.deepEqual(settledSessions, [old.session]);
 });
 
-test("a stale seek completion cannot settle or flush the newer session", () => {
+test("a stale session cannot flush or settle the newer session", () => {
   const video = new FakeVideo(createRanges([[0, 2]]));
   const old = createSession(video, 1);
   const frames = createQueuedSchedule();
@@ -369,26 +418,21 @@ test("a stale seek completion cannot settle or flush the newer session", () => {
   const bounds = { minimum: 0, maximum: 100 };
 
   coordinator.seekBy(video, 30, bounds, old.session);
-  clock.advance(80);
   assert.deepEqual(video.assignments, [30]);
 
   old.invalidate();
   const next = createSession(video, 2);
   assert.equal(coordinator.seekBy(video, 5, bounds, next.session), 35);
   assert.deepEqual(settledSessions, [old.session]);
-
-  video.finishSeek();
-  frames.drain();
-  assert.equal(coordinator.flush(video, old.session), null);
-  assert.deepEqual(video.assignments, [30]);
-  assert.deepEqual(settledSessions, [old.session]);
-
-  clock.advance(79);
-  assert.deepEqual(video.assignments, [30]);
-  clock.advance(1);
   assert.deepEqual(video.assignments, [30, 35]);
 
+  assert.equal(coordinator.flush(video, old.session), null);
+  frames.drain();
+  assert.deepEqual(video.assignments, [30, 35]);
+  assert.deepEqual(settledSessions, [old.session]);
+
   video.finishSeek();
+  clock.advance(80);
   assert.deepEqual(settledSessions, [old.session, next.session]);
 });
 
@@ -402,7 +446,7 @@ test("cancel invalidates a queued seek completion", () => {
   const bounds = { minimum: 0, maximum: 100 };
 
   coordinator.seekBy(video, 30, bounds, session);
-  clock.advance(80);
+  clock.advance(20);
   coordinator.seekBy(video, 10, bounds, session);
   coordinator.cancel(video);
   video.seeking = false;
