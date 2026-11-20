@@ -15,8 +15,9 @@ A Chrome and Firefox extension that lets horizontal-wheel mice such as the Logit
 - Preserves the current playback state while seeking
 - Shows the target time and progress immediately while paused, independently of media loading
 - Updates buffered targets immediately; unbuffered gestures start loading within 100ms and commit the final target after input stops
+- Ignores wheel seeking during YouTube ads and clears pending seeks when ads or media sources change
 - Preserves the volume slider's native horizontal-wheel behavior
-- Clamps VOD, ad, and DVR live-stream seeking to the actual seekable range
+- Clamps VOD and DVR live-stream seeking to the actual seekable range
 
 ## Quick install
 
